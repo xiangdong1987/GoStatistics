@@ -25,7 +25,13 @@ type moduleStats struct {
 }
 
 type moduleCounts struct {
-	mutex               sync.Mutex       //互斥锁
+	mutex       sync.Mutex //互斥锁
+	totalStatus *stats
+	serverCount map[string]*stats //服务端统计
+	clientCount map[string]*stats //客户端统计
+}
+
+type stats struct {
 	key                 string           //接口名
 	totalCount          int32            //总共次数
 	totalTime           int32            //总时间
@@ -40,15 +46,13 @@ type moduleCounts struct {
 	failRetCodeList     map[int32]int32  //失败返回code
 	ipSuccessClientList map[string]int32 //成功客户端列表
 	ipSuccessServerList map[string]int32 //成功服务端列表
-	SuccessRetCodeList  map[int32]int32  //成功放回code
+	SuccessRetCodeList  map[int32]int32
 }
 
 type StatsServer struct {
 	timeInterval    int
 	timeKeyInterval int
-	allCount        map[string]moduleCounts
-	serverCount     map[string]map[string]moduleCounts
-	clientCount     map[string]map[string]moduleCounts
+	allCount        map[string]*moduleCounts
 }
 
 func New() (*StatsServer, error) {
@@ -67,6 +71,20 @@ func (s *StatsServer) StartServer() {
 		log.Fatal(err)
 	}
 	defer pc.Close()
+	//添加定时
+	interVal := time.Second * time.Duration(s.timeInterval)
+	ticker := time.NewTicker(interVal)
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				//fmt.Printf("ticked at %v\n", time.Now())
+				for key, value := range s.allCount {
+					go s.dataLand(key, value)
+				}
+			}
+		}
+	}()
 	for {
 		buf := make([]byte, 1024)
 		n, addr, err := pc.ReadFrom(buf)
@@ -77,6 +95,11 @@ func (s *StatsServer) StartServer() {
 	}
 }
 
+//数据落地
+func (s *StatsServer) dataLand(key string, content *moduleCounts) {
+
+}
+
 //计算
 func (s *StatsServer) calculateModule(content *moduleStats) {
 	m := getM()
@@ -85,129 +108,114 @@ func (s *StatsServer) calculateModule(content *moduleStats) {
 	serverIp := tool.Long2ip(content.serverIp)
 	//all被调
 	if _, ok := s.allCount[key]; ok {
-		s.allCount[key] = s.calculateItem(key, s.allCount, serverIp, clientIp, content)
+		s.calculateItem(key, s.allCount[key].totalStatus, serverIp, clientIp, content)
 	} else {
-		s.allCount = make(map[string]moduleCounts)
-		s.allCount[key] = s.calculateItem(key, s.allCount, serverIp, clientIp, content)
+		s.allCount = make(map[string]*moduleCounts)
+		s.allCount[key] = new(moduleCounts)
+		s.calculateItem(key, s.allCount[key].totalStatus, serverIp, clientIp, content)
 	}
 	//server被调
-	if _, ok := s.serverCount[key]; ok {
-		s.serverCount[key][serverIp] = s.calculateItem(serverIp, s.serverCount[key], serverIp, clientIp, content)
+	if _, ok := s.allCount[key].serverCount[serverIp]; ok {
+		s.calculateItem(key, s.allCount[key].serverCount[serverIp], serverIp, clientIp, content)
 	} else {
-		s.serverCount = make(map[string]map[string]moduleCounts)
-		if _, ok := s.serverCount[key]; ok {
-			s.serverCount[key][serverIp] = s.calculateItem(serverIp, s.serverCount[key], serverIp, clientIp, content)
-		} else {
-			s.serverCount[key] = make(map[string]moduleCounts)
-			s.serverCount[key][serverIp] = s.calculateItem(serverIp, s.serverCount[key], serverIp, clientIp, content)
-		}
+		s.allCount[key].serverCount = map[string]*stats{}
+		s.calculateItem(key, s.allCount[key].serverCount[serverIp], serverIp, clientIp, content)
 	}
 	//client被调
-	if _, ok := s.clientCount[key]; ok {
-		s.clientCount[key][clientIp] = s.calculateItem(clientIp, s.clientCount[key], serverIp, clientIp, content)
+	if _, ok := s.allCount[key].clientCount[clientIp]; ok {
+		s.calculateItem(key, s.allCount[key].clientCount[clientIp], serverIp, clientIp, content)
 	} else {
-		s.clientCount = make(map[string]map[string]moduleCounts)
-		if _, ok := s.clientCount[key]; ok {
-			s.clientCount[key][clientIp] = s.calculateItem(clientIp, s.clientCount[key], serverIp, clientIp, content)
-		} else {
-			s.clientCount[key] = make(map[string]moduleCounts)
-			s.clientCount[key][clientIp] = s.calculateItem(clientIp, s.clientCount[key], serverIp, clientIp, content)
-		}
+		s.allCount[key].clientCount = map[string]*stats{}
+		s.calculateItem(key, s.allCount[key].clientCount[clientIp], serverIp, clientIp, content)
 	}
-	fmt.Println(s)
+	//fmt.Println(fmt.Println(s.allCount[key]))
 }
 
 //计算单个统计
-func (s *StatsServer) calculateItem(key string, item map[string]moduleCounts, serverIp string, clientIp string, content *moduleStats) moduleCounts {
-	var tmp moduleCounts
-	if _, ok := item[key]; ok {
+func (s *StatsServer) calculateItem(key string, item *stats, serverIp string, clientIp string, content *moduleStats) {
+	s.allCount[key].mutex.Lock()
+	if item != nil {
 		//存在
-		tmp = item[key]
-		//fmt.Println(tmp)
-		tmp.mutex.Lock()
-		tmp.totalCount += 1
-		tmp.totalTime += content.millisecond
+		item.totalCount += 1
+		item.totalTime += content.millisecond
 		if content.success == 0 {
-			tmp.failCount += 1
-			tmp.totalFailTime += content.millisecond
+			item.failCount += 1
+			item.totalFailTime += content.millisecond
 		}
-		if content.millisecond > tmp.maxTime {
-			tmp.maxTime = content.millisecond
+		if content.millisecond > item.maxTime {
+			item.maxTime = content.millisecond
 		}
-		if content.millisecond < tmp.minTime {
-			tmp.minTime = content.millisecond
+		if content.millisecond < item.minTime {
+			item.minTime = content.millisecond
 		}
 	} else {
-		tmp = moduleCounts{}
-		item = make(map[string]moduleCounts)
-		item[key] = tmp
-		tmp.mutex.Lock()
-		tmp.totalCount = 1
-		tmp.totalTime = 1
-		tmp.maxTime = content.millisecond
-		tmp.minTime = content.millisecond
+		item = &stats{}
+		item.totalCount = 1
+		item.totalTime = 1
+		item.maxTime = content.millisecond
+		item.minTime = content.millisecond
 		if content.success == 0 {
-			tmp.failCount = 1
-			tmp.totalFailTime = content.millisecond
+			item.failCount = 1
+			item.totalFailTime = content.millisecond
 		} else {
-			tmp.failCount = 0
-			tmp.totalFailTime = 0
+			item.failCount = 0
+			item.totalFailTime = 0
 		}
-		tmp.key = key
+		item.key = key
 	}
-	if _, ok := tmp.ipServerList[serverIp]; ok {
-		tmp.ipServerList[serverIp] += 1
+	if _, ok := item.ipServerList[serverIp]; ok {
+		item.ipServerList[serverIp] += 1
 	} else {
-		tmp.ipServerList = make(map[string]int32)
-		tmp.ipServerList[serverIp] = 1
+		item.ipServerList = make(map[string]int32)
+		item.ipServerList[serverIp] = 1
 	}
-	if _, ok := tmp.ipClientList[serverIp]; ok {
-		tmp.ipClientList[serverIp] += 1
+	if _, ok := item.ipClientList[serverIp]; ok {
+		item.ipClientList[serverIp] += 1
 	} else {
-		tmp.ipClientList = make(map[string]int32)
-		tmp.ipClientList[serverIp] = 1
+		item.ipClientList = make(map[string]int32)
+		item.ipClientList[serverIp] = 1
 	}
 	if content.success == 0 {
-		if _, ok := tmp.ipFailServerList[serverIp]; ok {
-			tmp.ipFailServerList[serverIp] += 1
+		if _, ok := item.ipFailServerList[serverIp]; ok {
+			item.ipFailServerList[serverIp] += 1
 		} else {
-			tmp.ipFailServerList = make(map[string]int32)
-			tmp.ipFailServerList[serverIp] = 1
+			item.ipFailServerList = make(map[string]int32)
+			item.ipFailServerList[serverIp] = 1
 		}
-		if _, ok := tmp.ipFailClientList[clientIp]; ok {
-			tmp.ipFailClientList[clientIp] += 1
+		if _, ok := item.ipFailClientList[clientIp]; ok {
+			item.ipFailClientList[clientIp] += 1
 		} else {
-			tmp.ipFailClientList = make(map[string]int32)
-			tmp.ipFailClientList[clientIp] = 1
+			item.ipFailClientList = make(map[string]int32)
+			item.ipFailClientList[clientIp] = 1
 		}
-		if _, ok := tmp.failRetCodeList[content.retCode]; ok {
-			tmp.failRetCodeList[content.retCode] += 1
+		if _, ok := item.failRetCodeList[content.retCode]; ok {
+			item.failRetCodeList[content.retCode] += 1
 		} else {
-			tmp.failRetCodeList = make(map[int32]int32)
-			tmp.failRetCodeList[content.retCode] = 1
+			item.failRetCodeList = make(map[int32]int32)
+			item.failRetCodeList[content.retCode] = 1
 		}
 	} else {
-		if _, ok := tmp.ipSuccessServerList[serverIp]; ok {
-			tmp.ipSuccessServerList[serverIp] += 1
+		if _, ok := item.ipSuccessServerList[serverIp]; ok {
+			item.ipSuccessServerList[serverIp] += 1
 		} else {
-			tmp.ipSuccessServerList = make(map[string]int32)
-			tmp.ipSuccessServerList[serverIp] = 1
+			item.ipSuccessServerList = make(map[string]int32)
+			item.ipSuccessServerList[serverIp] = 1
 		}
-		if _, ok := tmp.ipSuccessClientList[clientIp]; ok {
-			tmp.ipSuccessClientList[clientIp] += 1
+		if _, ok := item.ipSuccessClientList[clientIp]; ok {
+			item.ipSuccessClientList[clientIp] += 1
 		} else {
-			tmp.ipSuccessClientList = make(map[string]int32)
-			tmp.ipSuccessClientList[clientIp] = 1
+			item.ipSuccessClientList = make(map[string]int32)
+			item.ipSuccessClientList[clientIp] = 1
 		}
-		if _, ok := tmp.SuccessRetCodeList[content.retCode]; ok {
-			tmp.SuccessRetCodeList[content.retCode] += 1
+		if _, ok := item.SuccessRetCodeList[content.retCode]; ok {
+			item.SuccessRetCodeList[content.retCode] += 1
 		} else {
-			tmp.SuccessRetCodeList = make(map[int32]int32)
-			tmp.SuccessRetCodeList[content.retCode] = 1
+			item.SuccessRetCodeList = make(map[int32]int32)
+			item.SuccessRetCodeList[content.retCode] = 1
 		}
 	}
-	tmp.mutex.Unlock()
-	return tmp
+	s.allCount[key].mutex.Unlock()
+	fmt.Println(*item)
 }
 
 //获取分钟
