@@ -5,5 +5,6 @@ import (
 )
 
 func main() {
-	server.StartServer()
+	_, err := server.New()
+	panic(err)
 }
