@@ -4,10 +4,12 @@ import (
 	"../tool"
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"log"
 	"math"
 	"net"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -26,30 +28,31 @@ type moduleStats struct {
 
 type moduleCounts struct {
 	mutex       sync.Mutex //互斥锁
-	totalStatus *stats
-	serverCount map[string]*stats //服务端统计
-	clientCount map[string]*stats //客户端统计
+	TotalStatus *stats
+	ServerCount map[string]*stats //服务端统计
+	ClientCount map[string]*stats //客户端统计
 }
 
 type stats struct {
-	key                 string           //接口名
-	totalCount          int32            //总共次数
-	totalTime           int32            //总时间
-	maxTime             int32            //最大时间
-	minTime             int32            //最小时间
-	failCount           int32            //失败次数
-	totalFailTime       int32            //失败总时间
-	ipServerList        map[string]int32 //访问ip列表
-	ipClientList        map[string]int32 //客户端访问列表
-	ipFailClientList    map[string]int32 //失败客户端ip列表
-	ipFailServerList    map[string]int32 //失败服务端ip列表
-	failRetCodeList     map[int32]int32  //失败返回code
-	ipSuccessClientList map[string]int32 //成功客户端列表
-	ipSuccessServerList map[string]int32 //成功服务端列表
+	Key                 string           //接口名
+	TotalCount          int32            //总共次数
+	TotalTime           int32            //总时间
+	MaxTime             int32            //最大时间
+	MinTime             int32            //最小时间
+	FailCount           int32            //失败次数
+	TotalFailTime       int32            //失败总时间
+	IpServerList        map[string]int32 //访问ip列表
+	IpClientList        map[string]int32 //客户端访问列表
+	IpFailClientList    map[string]int32 //失败客户端ip列表
+	IpFailServerList    map[string]int32 //失败服务端ip列表
+	FailRetCodeList     map[int32]int32  //失败返回code
+	IpSuccessClientList map[string]int32 //成功客户端列表
+	IpSuccessServerList map[string]int32 //成功服务端列表
 	SuccessRetCodeList  map[int32]int32
 }
 
 type StatsServer struct {
+	pLog            *log.Logger
 	timeInterval    int
 	timeKeyInterval int
 	allCount        map[string]*moduleCounts
@@ -60,6 +63,13 @@ func New() (*StatsServer, error) {
 	s.timeKeyInterval = 5
 	s.timeInterval = 5
 	s.StartServer()
+	fileName := "xdd.log"
+	logFile, err := os.Create(fileName)
+	defer logFile.Close()
+	if err != nil {
+		log.Fatalln("open file error")
+	}
+	s.pLog = tool.New(logFile, "[Info]", 1)
 	return s, nil
 }
 
@@ -98,6 +108,13 @@ func (s *StatsServer) StartServer() {
 //数据落地
 func (s *StatsServer) dataLand(key string, content *moduleCounts) {
 
+	b, err := json.Marshal(*content)
+	if err != nil {
+		fmt.Println("Umarshal failed:", err)
+		return
+	}
+	fmt.Println("json:", string(b))
+	fmt.Println(*content)
 }
 
 //计算
@@ -108,27 +125,27 @@ func (s *StatsServer) calculateModule(content *moduleStats) {
 	serverIp := tool.Long2ip(content.serverIp)
 	//all被调
 	if _, ok := s.allCount[key]; ok {
-		s.allCount[key].totalStatus = s.calculateItem(key, s.allCount[key].totalStatus, serverIp, clientIp, content)
+		s.allCount[key].TotalStatus = s.calculateItem(key, s.allCount[key].TotalStatus, serverIp, clientIp, content)
 	} else {
 		s.allCount = make(map[string]*moduleCounts)
 		s.allCount[key] = new(moduleCounts)
-		s.allCount[key].totalStatus = s.calculateItem(key, s.allCount[key].totalStatus, serverIp, clientIp, content)
+		s.allCount[key].TotalStatus = s.calculateItem(key, s.allCount[key].TotalStatus, serverIp, clientIp, content)
 	}
 	//server被调
-	if _, ok := s.allCount[key].serverCount[serverIp]; ok {
-		s.allCount[key].serverCount[serverIp] = s.calculateItem(key, s.allCount[key].serverCount[serverIp], serverIp, clientIp, content)
+	if _, ok := s.allCount[key].ServerCount[serverIp]; ok {
+		s.allCount[key].ServerCount[serverIp] = s.calculateItem(key, s.allCount[key].ServerCount[serverIp], serverIp, clientIp, content)
 	} else {
-		s.allCount[key].serverCount = map[string]*stats{}
-		s.allCount[key].serverCount[serverIp] = s.calculateItem(key, s.allCount[key].serverCount[serverIp], serverIp, clientIp, content)
+		s.allCount[key].ServerCount = map[string]*stats{}
+		s.allCount[key].ServerCount[serverIp] = s.calculateItem(key, s.allCount[key].ServerCount[serverIp], serverIp, clientIp, content)
 	}
 	//client被调
-	if _, ok := s.allCount[key].clientCount[clientIp]; ok {
-		s.allCount[key].clientCount[clientIp] = s.calculateItem(key, s.allCount[key].clientCount[clientIp], serverIp, clientIp, content)
+	if _, ok := s.allCount[key].ClientCount[clientIp]; ok {
+		s.allCount[key].ClientCount[clientIp] = s.calculateItem(key, s.allCount[key].ClientCount[clientIp], serverIp, clientIp, content)
 	} else {
-		s.allCount[key].clientCount = map[string]*stats{}
-		s.allCount[key].clientCount[clientIp] = s.calculateItem(key, s.allCount[key].clientCount[clientIp], serverIp, clientIp, content)
+		s.allCount[key].ClientCount = map[string]*stats{}
+		s.allCount[key].ClientCount[clientIp] = s.calculateItem(key, s.allCount[key].ClientCount[clientIp], serverIp, clientIp, content)
 	}
-	//fmt.Println(fmt.Println(s.allCount[key]))
+	//fmt.Println(fmt.Println(s.allCount[Key]))
 }
 
 //计算单个统计
@@ -136,76 +153,76 @@ func (s *StatsServer) calculateItem(key string, item *stats, serverIp string, cl
 	s.allCount[key].mutex.Lock()
 	if item != nil {
 		//存在
-		item.totalCount += 1
-		item.totalTime += content.millisecond
+		item.TotalCount += 1
+		item.TotalTime += content.millisecond
 		if content.success == 0 {
-			item.failCount += 1
-			item.totalFailTime += content.millisecond
+			item.FailCount += 1
+			item.TotalFailTime += content.millisecond
 		}
-		if content.millisecond > item.maxTime {
-			item.maxTime = content.millisecond
+		if content.millisecond > item.MaxTime {
+			item.MaxTime = content.millisecond
 		}
-		if content.millisecond < item.minTime {
-			item.minTime = content.millisecond
+		if content.millisecond < item.MinTime {
+			item.MinTime = content.millisecond
 		}
 	} else {
 		item = &stats{}
-		item.totalCount = 1
-		item.totalTime = 1
-		item.maxTime = content.millisecond
-		item.minTime = content.millisecond
+		item.TotalCount = 1
+		item.TotalTime = 1
+		item.MaxTime = content.millisecond
+		item.MinTime = content.millisecond
 		if content.success == 0 {
-			item.failCount = 1
-			item.totalFailTime = content.millisecond
+			item.FailCount = 1
+			item.TotalFailTime = content.millisecond
 		} else {
-			item.failCount = 0
-			item.totalFailTime = 0
+			item.FailCount = 0
+			item.TotalFailTime = 0
 		}
-		item.key = key
+		item.Key = key
 	}
-	if _, ok := item.ipServerList[serverIp]; ok {
-		item.ipServerList[serverIp] += 1
+	if _, ok := item.IpServerList[serverIp]; ok {
+		item.IpServerList[serverIp] += 1
 	} else {
-		item.ipServerList = make(map[string]int32)
-		item.ipServerList[serverIp] = 1
+		item.IpServerList = make(map[string]int32)
+		item.IpServerList[serverIp] = 1
 	}
-	if _, ok := item.ipClientList[serverIp]; ok {
-		item.ipClientList[serverIp] += 1
+	if _, ok := item.IpClientList[serverIp]; ok {
+		item.IpClientList[serverIp] += 1
 	} else {
-		item.ipClientList = make(map[string]int32)
-		item.ipClientList[serverIp] = 1
+		item.IpClientList = make(map[string]int32)
+		item.IpClientList[serverIp] = 1
 	}
 	if content.success == 0 {
-		if _, ok := item.ipFailServerList[serverIp]; ok {
-			item.ipFailServerList[serverIp] += 1
+		if _, ok := item.IpFailServerList[serverIp]; ok {
+			item.IpFailServerList[serverIp] += 1
 		} else {
-			item.ipFailServerList = make(map[string]int32)
-			item.ipFailServerList[serverIp] = 1
+			item.IpFailServerList = make(map[string]int32)
+			item.IpFailServerList[serverIp] = 1
 		}
-		if _, ok := item.ipFailClientList[clientIp]; ok {
-			item.ipFailClientList[clientIp] += 1
+		if _, ok := item.IpFailClientList[clientIp]; ok {
+			item.IpFailClientList[clientIp] += 1
 		} else {
-			item.ipFailClientList = make(map[string]int32)
-			item.ipFailClientList[clientIp] = 1
+			item.IpFailClientList = make(map[string]int32)
+			item.IpFailClientList[clientIp] = 1
 		}
-		if _, ok := item.failRetCodeList[content.retCode]; ok {
-			item.failRetCodeList[content.retCode] += 1
+		if _, ok := item.FailRetCodeList[content.retCode]; ok {
+			item.FailRetCodeList[content.retCode] += 1
 		} else {
-			item.failRetCodeList = make(map[int32]int32)
-			item.failRetCodeList[content.retCode] = 1
+			item.FailRetCodeList = make(map[int32]int32)
+			item.FailRetCodeList[content.retCode] = 1
 		}
 	} else {
-		if _, ok := item.ipSuccessServerList[serverIp]; ok {
-			item.ipSuccessServerList[serverIp] += 1
+		if _, ok := item.IpSuccessServerList[serverIp]; ok {
+			item.IpSuccessServerList[serverIp] += 1
 		} else {
-			item.ipSuccessServerList = make(map[string]int32)
-			item.ipSuccessServerList[serverIp] = 1
+			item.IpSuccessServerList = make(map[string]int32)
+			item.IpSuccessServerList[serverIp] = 1
 		}
-		if _, ok := item.ipSuccessClientList[clientIp]; ok {
-			item.ipSuccessClientList[clientIp] += 1
+		if _, ok := item.IpSuccessClientList[clientIp]; ok {
+			item.IpSuccessClientList[clientIp] += 1
 		} else {
-			item.ipSuccessClientList = make(map[string]int32)
-			item.ipSuccessClientList[clientIp] = 1
+			item.IpSuccessClientList = make(map[string]int32)
+			item.IpSuccessClientList[clientIp] = 1
 		}
 		if _, ok := item.SuccessRetCodeList[content.retCode]; ok {
 			item.SuccessRetCodeList[content.retCode] += 1
@@ -215,7 +232,7 @@ func (s *StatsServer) calculateItem(key string, item *stats, serverIp string, cl
 		}
 	}
 	s.allCount[key].mutex.Unlock()
-	fmt.Println(item)
+	//fmt.Println(item)
 	return item
 }
 
