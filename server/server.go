@@ -108,31 +108,31 @@ func (s *StatsServer) calculateModule(content *moduleStats) {
 	serverIp := tool.Long2ip(content.serverIp)
 	//all被调
 	if _, ok := s.allCount[key]; ok {
-		s.calculateItem(key, s.allCount[key].totalStatus, serverIp, clientIp, content)
+		s.allCount[key].totalStatus = s.calculateItem(key, s.allCount[key].totalStatus, serverIp, clientIp, content)
 	} else {
 		s.allCount = make(map[string]*moduleCounts)
 		s.allCount[key] = new(moduleCounts)
-		s.calculateItem(key, s.allCount[key].totalStatus, serverIp, clientIp, content)
+		s.allCount[key].totalStatus = s.calculateItem(key, s.allCount[key].totalStatus, serverIp, clientIp, content)
 	}
 	//server被调
 	if _, ok := s.allCount[key].serverCount[serverIp]; ok {
-		s.calculateItem(key, s.allCount[key].serverCount[serverIp], serverIp, clientIp, content)
+		s.allCount[key].serverCount[serverIp] = s.calculateItem(key, s.allCount[key].serverCount[serverIp], serverIp, clientIp, content)
 	} else {
 		s.allCount[key].serverCount = map[string]*stats{}
-		s.calculateItem(key, s.allCount[key].serverCount[serverIp], serverIp, clientIp, content)
+		s.allCount[key].serverCount[serverIp] = s.calculateItem(key, s.allCount[key].serverCount[serverIp], serverIp, clientIp, content)
 	}
 	//client被调
 	if _, ok := s.allCount[key].clientCount[clientIp]; ok {
-		s.calculateItem(key, s.allCount[key].clientCount[clientIp], serverIp, clientIp, content)
+		s.allCount[key].clientCount[clientIp] = s.calculateItem(key, s.allCount[key].clientCount[clientIp], serverIp, clientIp, content)
 	} else {
 		s.allCount[key].clientCount = map[string]*stats{}
-		s.calculateItem(key, s.allCount[key].clientCount[clientIp], serverIp, clientIp, content)
+		s.allCount[key].clientCount[clientIp] = s.calculateItem(key, s.allCount[key].clientCount[clientIp], serverIp, clientIp, content)
 	}
 	//fmt.Println(fmt.Println(s.allCount[key]))
 }
 
 //计算单个统计
-func (s *StatsServer) calculateItem(key string, item *stats, serverIp string, clientIp string, content *moduleStats) {
+func (s *StatsServer) calculateItem(key string, item *stats, serverIp string, clientIp string, content *moduleStats) *stats {
 	s.allCount[key].mutex.Lock()
 	if item != nil {
 		//存在
@@ -215,7 +215,8 @@ func (s *StatsServer) calculateItem(key string, item *stats, serverIp string, cl
 		}
 	}
 	s.allCount[key].mutex.Unlock()
-	fmt.Println(*item)
+	fmt.Println(item)
+	return item
 }
 
 //获取分钟
