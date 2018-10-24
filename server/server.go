@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-type moduleStats struct {
+type ModuleStats struct {
 	interfaceId int32  //接口ID
 	moduleId    int32  //模块ID
 	success     int8   //成功或失败
@@ -53,15 +53,15 @@ type stats struct {
 
 type StatsServer struct {
 	pLog            *log.Logger
-	timeInterval    int
-	timeKeyInterval int
+	TimeInterval    int
+	TimeKeyInterval int
 	allCount        map[string]*moduleCounts
 }
 
 func New() (*StatsServer, error) {
 	s := &StatsServer{}
-	s.timeKeyInterval = 5
-	s.timeInterval = 5
+	s.TimeKeyInterval = 5
+	s.TimeInterval = 5
 	s.StartServer()
 	fileName := "xdd.log"
 	logFile, err := os.Create(fileName)
@@ -82,7 +82,7 @@ func (s *StatsServer) StartServer() {
 	}
 	defer pc.Close()
 	//添加定时
-	interVal := time.Second * time.Duration(s.timeInterval)
+	interVal := time.Second * time.Duration(s.TimeInterval)
 	ticker := time.NewTicker(interVal)
 	go func() {
 		for {
@@ -118,9 +118,9 @@ func (s *StatsServer) dataLand(key string, content *moduleCounts) {
 }
 
 //计算
-func (s *StatsServer) calculateModule(content *moduleStats) {
+func (s *StatsServer) CalculateModule(content *ModuleStats) {
 	m := getM()
-	key := fmt.Sprintf("%d_%d_%d_%d", content.moduleId, content.interfaceId, int32(math.Floor(float64(m/s.timeInterval))), int32(math.Floor(float64(m/s.timeKeyInterval))))
+	key := fmt.Sprintf("%d_%d_%d_%d", content.moduleId, content.interfaceId, int32(math.Floor(float64(m/s.TimeInterval))), int32(math.Floor(float64(m/s.TimeKeyInterval))))
 	clientIp := content.clientIp
 	serverIp := tool.Long2ip(content.serverIp)
 	//all被调
@@ -149,7 +149,7 @@ func (s *StatsServer) calculateModule(content *moduleStats) {
 }
 
 //计算单个统计
-func (s *StatsServer) calculateItem(key string, item *stats, serverIp string, clientIp string, content *moduleStats) *stats {
+func (s *StatsServer) calculateItem(key string, item *stats, serverIp string, clientIp string, content *ModuleStats) *stats {
 	s.allCount[key].mutex.Lock()
 	if item != nil {
 		//存在
@@ -249,12 +249,12 @@ func (s *StatsServer) unpack(pc net.PacketConn, addr net.Addr, buf []byte) {
 	if math.Mod(float64(length), 25) == 0 {
 		i := 0
 		n := length / 25
-		var content *moduleStats
+		var content *ModuleStats
 		for i < n {
-			content = new(moduleStats)
-			parsingStats(buf[i*25:(i+1)*25], content, addr)
+			content = new(ModuleStats)
+			s.ParsingStats(buf[i*25:(i+1)*25], content, addr)
 			//计算
-			s.calculateModule(content)
+			s.CalculateModule(content)
 			i++
 		}
 	} else {
@@ -264,14 +264,14 @@ func (s *StatsServer) unpack(pc net.PacketConn, addr net.Addr, buf []byte) {
 }
 
 //解析字段
-func parsingStats(one []byte, content *moduleStats, addr net.Addr) *moduleStats {
-	byteToModule(one[0:4], content, 1)
-	byteToModule(one[4:8], content, 2)
-	byteToModule(one[8:9], content, 3)
-	byteToModule(one[9:13], content, 4)
-	byteToModule(one[13:17], content, 5)
-	byteToModule(one[17:21], content, 6)
-	byteToModule(one[21:25], content, 7)
+func (s *StatsServer) ParsingStats(one []byte, content *ModuleStats, addr net.Addr) *ModuleStats {
+	ByteToModule(one[0:4], content, 1)
+	ByteToModule(one[4:8], content, 2)
+	ByteToModule(one[8:9], content, 3)
+	ByteToModule(one[9:13], content, 4)
+	ByteToModule(one[13:17], content, 5)
+	ByteToModule(one[17:21], content, 6)
+	ByteToModule(one[21:25], content, 7)
 	content.clientIp = getIp(addr.String())
 	return content
 }
@@ -283,7 +283,7 @@ func getIp(str string) string {
 }
 
 //流转结构
-func byteToModule(bt []byte, m *moduleStats, t int) {
+func ByteToModule(bt []byte, m *ModuleStats, t int) {
 	data := bytes.NewReader(bt)
 	var err error
 	switch t {
