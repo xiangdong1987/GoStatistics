@@ -38,4 +38,4 @@ type stats struct {
     * 每次分配内存次数 20
 * swoole upd 压测结果
     * php run.php -c 100 -n 10000 -s udp://127.0.0.1:9903 -f udp
-![image](https://github.com/xiangdong1987/GoStatistics/tree/master/images/swoole_benchmark.jpg)
+![image](https://github.com/xiangdong1987/GoStatistics/blob/master/images/swoole_benchmark.png)
