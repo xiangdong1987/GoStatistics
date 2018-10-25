@@ -260,7 +260,12 @@ func (s *StatsServer) unpack(pc net.PacketConn, addr net.Addr, buf []byte) {
 	} else {
 		panic("pack length is invalid")
 	}
-	//pc.WriteTo(buf, addr)
+	//压测试使用
+	//buffer := &bytes.Buffer{}
+	//backToStringSlice := []string{"ok"}
+	//gob.NewEncoder(buffer).Encode(backToStringSlice)
+	//byteSlice := buffer.Bytes()
+	//pc.WriteTo(byteSlice, addr)
 }
 
 //解析字段
