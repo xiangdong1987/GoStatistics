@@ -28,12 +28,12 @@ type ModuleStats struct {
 
 type moduleCounts struct {
 	mutex       sync.Mutex //互斥锁
-	TotalStatus *stats
-	ServerCount map[string]*stats //服务端统计
-	ClientCount map[string]*stats //客户端统计
+	TotalStatus *Stats
+	ServerCount map[string]*Stats //服务端统计
+	ClientCount map[string]*Stats //客户端统计
 }
 
-type stats struct {
+type Stats struct {
 	Key                 string           //接口名
 	TotalCount          int32            //总共次数
 	TotalTime           int32            //总时间
@@ -113,7 +113,7 @@ func (s *StatsServer) dataLand(key string, content *moduleCounts) {
 		fmt.Println("Umarshal failed:", err)
 		return
 	}
-	s.pLog.Println(b)
+	s.pLog.Println(string(b))
 }
 
 //计算
@@ -134,21 +134,21 @@ func (s *StatsServer) CalculateModule(content *ModuleStats) {
 	if _, ok := s.allCount[key].ServerCount[serverIp]; ok {
 		s.allCount[key].ServerCount[serverIp] = s.calculateItem(key, s.allCount[key].ServerCount[serverIp], serverIp, clientIp, content)
 	} else {
-		s.allCount[key].ServerCount = map[string]*stats{}
+		s.allCount[key].ServerCount = map[string]*Stats{}
 		s.allCount[key].ServerCount[serverIp] = s.calculateItem(key, s.allCount[key].ServerCount[serverIp], serverIp, clientIp, content)
 	}
 	//client被调
 	if _, ok := s.allCount[key].ClientCount[clientIp]; ok {
 		s.allCount[key].ClientCount[clientIp] = s.calculateItem(key, s.allCount[key].ClientCount[clientIp], serverIp, clientIp, content)
 	} else {
-		s.allCount[key].ClientCount = map[string]*stats{}
+		s.allCount[key].ClientCount = map[string]*Stats{}
 		s.allCount[key].ClientCount[clientIp] = s.calculateItem(key, s.allCount[key].ClientCount[clientIp], serverIp, clientIp, content)
 	}
 	//fmt.Println(fmt.Println(s.allCount[Key]))
 }
 
 //计算单个统计
-func (s *StatsServer) calculateItem(key string, item *stats, serverIp string, clientIp string, content *ModuleStats) *stats {
+func (s *StatsServer) calculateItem(key string, item *Stats, serverIp string, clientIp string, content *ModuleStats) *Stats {
 	s.allCount[key].mutex.Lock()
 	if item != nil {
 		//存在
@@ -165,7 +165,7 @@ func (s *StatsServer) calculateItem(key string, item *stats, serverIp string, cl
 			item.MinTime = content.millisecond
 		}
 	} else {
-		item = &stats{}
+		item = &Stats{}
 		item.TotalCount = 1
 		item.TotalTime = 1
 		item.MaxTime = content.millisecond
