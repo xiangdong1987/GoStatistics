@@ -62,7 +62,6 @@ func New() (*StatsServer, error) {
 	s := &StatsServer{}
 	s.TimeKeyInterval = 5
 	s.TimeInterval = 5
-	s.StartServer()
 	fileName := "xdd.log"
 	logFile, err := os.Create(fileName)
 	defer logFile.Close()
@@ -70,6 +69,7 @@ func New() (*StatsServer, error) {
 		log.Fatalln("open file error")
 	}
 	s.pLog = tool.New(logFile, "[Info]", 1)
+	s.StartServer()
 	return s, nil
 }
 
@@ -108,13 +108,12 @@ func (s *StatsServer) StartServer() {
 //数据落地
 func (s *StatsServer) dataLand(key string, content *moduleCounts) {
 
-	b, err := json.Marshal(*content)
+	b, err := json.Marshal(*content.TotalStatus)
 	if err != nil {
 		fmt.Println("Umarshal failed:", err)
 		return
 	}
-	fmt.Println("json:", string(b))
-	fmt.Println(*content)
+	s.pLog.Println(b)
 }
 
 //计算
