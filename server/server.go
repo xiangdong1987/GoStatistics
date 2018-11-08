@@ -107,13 +107,20 @@ func (s *StatsServer) StartServer() {
 
 //数据落地
 func (s *StatsServer) dataLand(key string, content *moduleCounts) {
-
-	b, err := json.Marshal(*content.TotalStatus)
-	if err != nil {
-		fmt.Println("Umarshal failed:", err)
-		return
+	if content.TotalStatus.IpServerList != nil {
+		content.mutex.Lock()
+		b, err := json.Marshal(*content)
+		if err != nil {
+			fmt.Println("Umarshal failed:", err)
+			return
+		}
+		s.pLog.Println(string(b))
+		//清空数据
+		content.TotalStatus = &Stats{}
+		content.ServerCount = make(map[string]*Stats)
+		content.ClientCount = make(map[string]*Stats)
+		content.mutex.Unlock()
 	}
-	s.pLog.Println(string(b))
 }
 
 //计算
@@ -151,6 +158,7 @@ func (s *StatsServer) CalculateModule(content *ModuleStats) {
 func (s *StatsServer) calculateItem(key string, item *Stats, serverIp string, clientIp string, content *ModuleStats) *Stats {
 	s.allCount[key].mutex.Lock()
 	if item != nil {
+		item.Key = key
 		//存在
 		item.TotalCount += 1
 		item.TotalTime += content.millisecond
