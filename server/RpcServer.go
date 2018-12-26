@@ -73,10 +73,16 @@ func (s *RpcServer) handleConn(conn net.Conn) {
 		//获取包头
 		header := &RpcHeader{}
 		myTool.Unpack(HEADER_PACK, buf[0:HEADER_SIZE], &header.length, &header.encodeType, &header.uid, &header.serid)
+		//检查包头
 		if n != int(header.length+HEADER_SIZE) {
 			s.sendError(ERR_UNPACK, conn, header)
 			continue
 		}
+		if int(header.length) > buffer_maxlen {
+			s.sendError(ERR_TOOBIG, conn, header)
+			continue
+		}
+
 		//获取包体
 		bodyStr := buf[HEADER_SIZE:n]
 		buffer := new(bytes.Buffer)
