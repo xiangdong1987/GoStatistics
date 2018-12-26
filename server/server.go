@@ -1,7 +1,7 @@
 package server
 
 import (
-	"../tool"
+	"GoStatistics/myTool"
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
@@ -68,7 +68,7 @@ func New() (*StatsServer, error) {
 	if err != nil {
 		log.Fatalln("open file error")
 	}
-	s.pLog = tool.New(logFile, "[Info]", 1)
+	s.pLog = myTool.New(logFile, "[Info]", 1)
 	s.StartServer()
 	return s, nil
 }
@@ -128,7 +128,7 @@ func (s *StatsServer) CalculateModule(content *ModuleStats) {
 	m := getM()
 	key := fmt.Sprintf("%d_%d_%d_%d", content.moduleId, content.interfaceId, int32(math.Floor(float64(m/s.TimeInterval))), int32(math.Floor(float64(m/s.TimeKeyInterval))))
 	clientIp := content.clientIp
-	serverIp := tool.Long2ip(content.serverIp)
+	serverIp := myTool.Long2ip(content.serverIp)
 	//all被调
 	if _, ok := s.allCount[key]; ok {
 		s.allCount[key].TotalStatus = s.calculateItem(key, s.allCount[key].TotalStatus, serverIp, clientIp, content)

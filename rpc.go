@@ -1,6 +1,6 @@
 package main
 
-import "./server"
+import "GoStatistics/server"
 
 func main() {
 	_, err := server.InitRpcServer()
