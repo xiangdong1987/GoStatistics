@@ -1,6 +1,7 @@
 package server
 
 import (
+	"GoStatistics/model"
 	"GoStatistics/myTool"
 	"bytes"
 	"encoding/binary"
@@ -8,6 +9,8 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"reflect"
+	"strings"
 )
 
 type RpcHeader struct {
@@ -36,12 +39,40 @@ const HEADER_PACK = "NNNN"
 type RpcServer struct {
 	headerLength int
 	decodeType   int
+	models       map[string]interface{}
 }
 
 func InitRpcServer() (*RpcServer, error) {
 	s := &RpcServer{}
+	//初始化model
+	s.InitModels()
 	s.StartServer()
 	return s, nil
+}
+
+type ResultData struct {
+	Errno int         `json:"errno"`
+	Data  interface{} `json:"data"`
+}
+
+func (s *RpcServer) InitModels() {
+	modelList := []string{"Filter"}
+	s.models = make(map[string]interface{}, len(modelList))
+	filter := model.AcTrie{}
+	filter.Dictionary = make(map[int32]int)
+	arrList := []string{"冬天", "夏天", "秋天", "春天"}
+	filter.InitDictionary(arrList)
+	filter.Root = &model.AcNode{}
+	filter.Root.Children = make([]*model.AcNode, filter.DicLength)
+	//filter.root.fail=filter.root
+	for _, value := range arrList {
+		filter.AddWord(value)
+	}
+	//初始错误指针
+	filter.InitFailPoint()
+	//fmt.Println(filter)
+	s.models["Filter"] = &filter
+
 }
 
 //开启server
@@ -93,7 +124,17 @@ func (s *RpcServer) handleConn(conn net.Conn) {
 		if err1 != nil {
 			log.Println(err1)
 		}
-		data := []int{1, 2}
+		call := request["call"]
+		a := strings.Split(call, "::")
+		method := a[1]
+		modelX := reflect.ValueOf(s.models[a[0]]).MethodByName(method)
+		//fmt.Println(modelX)
+		//modelX.MethodByName(method)
+		args := make([]reflect.Value, 1)
+		params := request["params"]
+		args[0] = reflect.ValueOf(params)
+		data := modelX.Call(args)[0].Interface()
+		fmt.Println(data)
 		s.sendSuccess(conn, header, data)
 		return
 		//fmt.Println("recv msg:", string(buf[0:n]))
@@ -115,15 +156,18 @@ func (s *RpcServer) sendError(errorNo int, conn net.Conn, header *RpcHeader) {
 
 //发送成功
 func (s *RpcServer) sendSuccess(conn net.Conn, header *RpcHeader, data interface{}) {
-	result := make(map[string]interface{})
-	result["errno"] = 0
-	result["data"] = data
+	fmt.Println(data)
+	result := ResultData{}
+	result.Errno = 0
+	result.Data = data
+	fmt.Println(result)
 	body, err := json.Marshal(result)
 	if err != nil {
 		fmt.Println("json.Marshal failed:", err)
 		return
 	}
 	bodyLength := len(body)
+	fmt.Println(string(body))
 	rs := s.packData(header, bodyLength, body)
 	//fmt.Println(string(rs))
 	conn.Write(rs)

@@ -21,7 +21,7 @@ func Pack(format string, params ...interface{}) (rs []byte, err error) {
 	byteOrder := binary.BigEndian
 	for _, value := range params {
 		if string(format[i]) == "N" {
-			fmt.Println(value)
+			//fmt.Println(value)
 			binary.Write(buf, byteOrder, value)
 		}
 		i++
@@ -33,14 +33,14 @@ func Unpack(format string, data []byte, params ...interface{}) error {
 	if len(format) != len(params) {
 		return errors.New("Format is not correct ")
 	}
-	fmt.Println(string(data))
+	//fmt.Println(string(data))
 	buffer := bytes.NewReader(data)
 	var err error
 	i := 0
 	for _, value := range params {
 		if string(format[i]) == "N" {
 			err = binary.Read(buffer, binary.BigEndian, value)
-			fmt.Println(value)
+			//fmt.Println(value)
 		}
 		i++
 	}
