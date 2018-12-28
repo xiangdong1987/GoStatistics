@@ -11,32 +11,21 @@ type AcNode struct {
 }
 
 type AcTrie struct {
-	Root       *AcNode
-	Dictionary map[int32]int
-	DicLength  int
+	Root            *AcNode
+	Dictionary      map[int32]int
+	DicLength       int
+	DictionaryLevel map[string]string
 }
-
-func TestAcTrie() {
-	arrList := []string{"冬天", "夏天", "秋天", "春天"}
-	acTrie := AcTrie{}
-	acTrie.Dictionary = make(map[int32]int)
-	acTrie.InitDictionary(arrList)
-	acTrie.Root = &AcNode{}
-	acTrie.Root.Children = make([]*AcNode, acTrie.DicLength)
-	//acTrie.Root.fail=acTrie.Root
-	for _, value := range arrList {
-		acTrie.AddWord(value)
-	}
-	//初始错误指针
-	acTrie.InitFailPoint()
-	//fmt.Println(acTrie)
-	acTrie.Match("春天在哪里，春天在哪里，在小鸟的肚子里，冬天不错。")
+type MatchReturn struct {
+	Level     string   `json:"level"`
+	MatchList []string `json:"wordList"`
 }
 
 //初始化字典
-func (ac *AcTrie) InitDictionary(wordList []string) {
+func (ac *AcTrie) InitDictionary(wordList map[string]string) {
 	i := 0
-	for _, value := range wordList {
+	ac.DictionaryLevel = wordList
+	for value, _ := range wordList {
 		for _, c := range value {
 			if _, ok := ac.Dictionary[c]; ok {
 				continue
@@ -78,16 +67,16 @@ func (ac *AcTrie) AddWord(word string) {
 		} else {
 			newNode := &AcNode{}
 			newNode.Children = make([]*AcNode, ac.DicLength)
+			newNode.data = c
 			nowNode.Children[ac.Dictionary[c]] = newNode
-			nowNode.data = c
 			nowNode = newNode
 		}
-		i++
 		if i == len([]rune(word)) {
 			//fmt.Println(i)
 			nowNode.isEnd = true
 			nowNode.length = i
 		}
+		i++
 	}
 }
 
@@ -124,9 +113,10 @@ func (ac *AcTrie) InitFailPoint() {
 	}
 }
 
-func (ac *AcTrie) Match(str string) []string {
+func (ac *AcTrie) Match(str string) MatchReturn {
 	p := ac.Root
 	i := 1
+	nowLevel := "0"
 	var result []string
 	for _, c := range str {
 		//先判断字符是否在词典中
@@ -140,7 +130,6 @@ func (ac *AcTrie) Match(str string) []string {
 			p = p.fail
 		}
 		p = p.Children[ac.Dictionary[c]]
-		//fmt.Println(p)
 		if p == nil {
 			//从头再来
 			p = ac.Root
@@ -148,9 +137,14 @@ func (ac *AcTrie) Match(str string) []string {
 		tmp := p
 		for tmp != ac.Root && tmp != nil {
 			if tmp.isEnd == true {
-				pos := i - tmp.length + 1
+				fmt.Println(string(tmp.data))
+				pos := i - tmp.length
 				word := string([]rune(str)[pos : pos+tmp.length])
-				fmt.Println(word)
+				//fmt.Println(word)
+				tLevel := ac.DictionaryLevel[word]
+				if tLevel > nowLevel {
+					nowLevel = tLevel
+				}
 				result = append(result, word)
 				fmt.Println("Word is mach, pos is", pos, "length is", tmp.length)
 			}
@@ -158,5 +152,8 @@ func (ac *AcTrie) Match(str string) []string {
 		}
 		i++
 	}
-	return result
+	matchReturn := MatchReturn{}
+	matchReturn.Level = nowLevel
+	matchReturn.MatchList = result
+	return matchReturn
 }

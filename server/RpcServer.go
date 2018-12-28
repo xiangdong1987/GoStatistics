@@ -60,12 +60,14 @@ func (s *RpcServer) InitModels() {
 	s.models = make(map[string]interface{}, len(modelList))
 	filter := model.AcTrie{}
 	filter.Dictionary = make(map[int32]int)
-	arrList := []string{"冬天", "夏天", "秋天", "春天"}
-	filter.InitDictionary(arrList)
+	json, _ := myTool.ReadAll("/data/go/src/GoStatistics/model/dictionary/dictionary.json")
+	var listDic map[string]string
+	myTool.Jsondecode(json, &listDic)
+	filter.InitDictionary(listDic)
 	filter.Root = &model.AcNode{}
 	filter.Root.Children = make([]*model.AcNode, filter.DicLength)
 	//filter.root.fail=filter.root
-	for _, value := range arrList {
+	for value, _ := range listDic {
 		filter.AddWord(value)
 	}
 	//初始错误指针
@@ -134,7 +136,7 @@ func (s *RpcServer) handleConn(conn net.Conn) {
 		params := request["params"]
 		args[0] = reflect.ValueOf(params)
 		data := modelX.Call(args)[0].Interface()
-		fmt.Println(data)
+		//fmt.Println(data)
 		s.sendSuccess(conn, header, data)
 		return
 		//fmt.Println("recv msg:", string(buf[0:n]))
@@ -156,18 +158,18 @@ func (s *RpcServer) sendError(errorNo int, conn net.Conn, header *RpcHeader) {
 
 //发送成功
 func (s *RpcServer) sendSuccess(conn net.Conn, header *RpcHeader, data interface{}) {
-	fmt.Println(data)
+	//fmt.Println(data)
 	result := ResultData{}
 	result.Errno = 0
 	result.Data = data
-	fmt.Println(result)
+	//fmt.Println(result)
 	body, err := json.Marshal(result)
 	if err != nil {
 		fmt.Println("json.Marshal failed:", err)
 		return
 	}
 	bodyLength := len(body)
-	fmt.Println(string(body))
+	//fmt.Println(string(body))
 	rs := s.packData(header, bodyLength, body)
 	//fmt.Println(string(rs))
 	conn.Write(rs)
