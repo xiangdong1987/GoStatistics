@@ -1,7 +1,5 @@
 package model
 
-import "fmt"
-
 type AcNode struct {
 	data     int32
 	isEnd    bool
@@ -137,7 +135,7 @@ func (ac *AcTrie) Match(str string) MatchReturn {
 		tmp := p
 		for tmp != ac.Root && tmp != nil {
 			if tmp.isEnd == true {
-				fmt.Println(string(tmp.data))
+				//fmt.Println(string(tmp.data))
 				pos := i - tmp.length
 				word := string([]rune(str)[pos : pos+tmp.length])
 				//fmt.Println(word)
@@ -146,7 +144,8 @@ func (ac *AcTrie) Match(str string) MatchReturn {
 					nowLevel = tLevel
 				}
 				result = append(result, word)
-				fmt.Println("Word is mach, pos is", pos, "length is", tmp.length)
+				p = ac.Root
+				//fmt.Println("Word is mach, pos is", pos, "length is", tmp.length)
 			}
 			tmp = tmp.fail
 		}
